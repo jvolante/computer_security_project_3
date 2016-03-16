@@ -7,6 +7,7 @@ import re
 import datetime
 import time
 import multiprocessing
+import sys
 
 digs = s.digits + s.letters
 
@@ -16,7 +17,7 @@ parse_user_data = re.compile(r"(\w+):([\w\d]*):([a-f\d]+)")
 # Dictionary containing common substitutions for letters in passwords
 common_substitutions = {'a':"4@", 'e':'38', 'b':'56', 'g':'5&', 'h':'#', 'i':'1!', 'l':'1!', 'o':'0', 's':'$'}
 
-PREPEND_ITERATIONS = 999999
+PREPEND_ITERATIONS = 100 #999999
 userfile = "pa3hashes.txt"
 outputfile = "passwords.txt"
 
@@ -63,15 +64,9 @@ def mod_string_to_password(string):
 
   for output in make_substitutions(string):
     yield output
-
-  for output in make_substitutions(prepend_chars(string)):
+  
+  for output in make_substitutions(append_and_prepend_ints(string)):
     yield output
-
-  for ouptut in make_substitutions(append_chars(string)):
-    yield output
-
-  # for output in make_substitutions(prepend_chars(append_chars(string))):
-  #   yield output
 
 
 def change_cases(strings):
@@ -89,28 +84,13 @@ def change_cases(strings):
     yield string.lower()
 
 
-def prepend_chars(strings):
-  """
-  Generator function that prepends a sequence of numbers and letters to a list of strings
-  """
-
+def append_and_prepend_ints(strings):
   for string in strings:
-    for x in itertools.islice(itertools.count(), 0, PREPEND_ITERATIONS):
-      prepend = str(x)
-
-      yield prepend + string
-
-
-def append_chars(strings):
-  """
-  Generator function that appends a sequence of numbers and letters to a list of strings
-  """
-
-  for string in strings:
-    for x in itertools.islice(itertools.count(), 0, PREPEND_ITERATIONS):
+    for x in xrange(PREPEND_ITERATIONS):
       append = str(x)
 
       yield string + append
+      yield append + string
 
 
 def make_substitutions(strings):
@@ -125,7 +105,8 @@ def make_substitutions(strings):
         for s in subs:
           yield string.replace(letter, s)
           for x in make_substitutions([string.replace(letter, s)]):
-            yield x
+            if x != string.replace(letter, s):
+              yield x
 
 
 def get_string_with_subs_for_letter(string, letter, subs):
@@ -179,6 +160,7 @@ def try_words(words):
           s, milis = divmod(s * 1000, 1000)
 
           print user_names[index], putitive_password, "%i:%i:%i:%i" % (h, m, s, milis)
+          sys.stdout.flush()
 
 
 def process_job(data):
@@ -193,7 +175,7 @@ def main():
   Loads the dictionary into memory, sets up a pool of worker processes
   and schedules jobs to crack passwords.
   """
-
+  
   with open("words.json") as f:
     words = json.load(f, object_hook=ascii_encode_dict)
     words = [w.encode("ASCII") for w in words]
