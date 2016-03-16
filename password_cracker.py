@@ -16,7 +16,7 @@ parse_user_data = re.compile(r"(\w+):([\w\d]*):([a-f\d]+)")
 # Dictionary containing common substitutions for letters in passwords
 common_substitutions = {'a':"4@", 'e':'38', 'b':'56', 'g':'5&', 'h':'#', 'i':'1!', 'l':'1!', 'o':'0', 's':'$'}
 
-PREPEND_ITERATIONS = 99999999
+PREPEND_ITERATIONS = 999999
 userfile = "pa3hashes.txt"
 outputfile = "passwords.txt"
 
@@ -64,20 +64,14 @@ def mod_string_to_password(string):
   for output in make_substitutions(string):
     yield output
 
-  for output in prepend_chars(string):
-    yield output
-
-  for output in append_chars(string):
-    yield output
-
   for output in make_substitutions(prepend_chars(string)):
     yield output
 
   for ouptut in make_substitutions(append_chars(string)):
     yield output
 
-  for output in make_substitutions(prepend_chars(append_chars(string))):
-    yield output
+  # for output in make_substitutions(prepend_chars(append_chars(string))):
+  #   yield output
 
 
 def change_cases(strings):
