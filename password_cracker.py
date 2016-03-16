@@ -2,17 +2,19 @@ import json
 import hashlib
 import itertools
 import collections
-import string
+import string as s
 import re
 import datetime
+import time
 import multiprocessing
 
-digs = string.digits + string.letters
+digs = s.digits + s.letters
 
-parse_user_data = re.compile(r"(\w)+:([\w\d]+):([a-f\d]+)")
+# Used to parse the username, salt and hash from the text file
+parse_user_data = re.compile(r"(\w+):([\w\d]*):([a-f\d]+)")
 
-#dictionary containing common substitutions for letters in passwords
-common_substitutions = {'a':"4@", 'e':'38', 'g':'5', 'h':'#', 'i':'1!', 'l':'1!', 'o':'0', 's':'$'}
+# Dictionary containing common substitutions for letters in passwords
+common_substitutions = {'a':"4@", 'e':'38', 'b':'56', 'g':'5&', 'h':'#', 'i':'1!', 'l':'1!', 'o':'0', 's':'$'}
 
 PREPEND_ITERATIONS = 99999999
 userfile = "pa3hashes.txt"
@@ -57,7 +59,7 @@ def mod_string_to_password(string):
   Generator function that makes possible passwords from a root string
   """
 
-  string = [string]
+  string = set(change_cases([string]))
 
   for output in make_substitutions(string):
     yield output
@@ -78,6 +80,21 @@ def mod_string_to_password(string):
     yield output
 
 
+def change_cases(strings):
+  for string in strings:
+
+    yield string
+
+    for i, letter in enumerate(string):
+      if letter in s.lowercase:
+        yield string[0:i] + string[i].upper() + string[i + 1:]
+      elif letter in s.uppercase:
+        yield string[0:i] + string[i].lower() + string[i + 1:]
+
+    yield string.upper()
+    yield string.lower()
+
+
 def prepend_chars(strings):
   """
   Generator function that prepends a sequence of numbers and letters to a list of strings
@@ -85,8 +102,7 @@ def prepend_chars(strings):
 
   for string in strings:
     for x in itertools.islice(itertools.count(), 0, PREPEND_ITERATIONS):
-      prepend = int2base(x, 36)
-      # prepend = str(x)
+      prepend = str(x)
 
       yield prepend + string
 
@@ -98,10 +114,9 @@ def append_chars(strings):
 
   for string in strings:
     for x in itertools.islice(itertools.count(), 0, PREPEND_ITERATIONS):
-      append = int2base(x, 36)
-      # append = str(x)
+      append = str(x)
 
-      yield append + string
+      yield string + append
 
 
 def make_substitutions(strings):
@@ -117,14 +132,6 @@ def make_substitutions(strings):
           yield string.replace(letter, s)
           for x in make_substitutions([string.replace(letter, s)]):
             yield x
-
-
-def do_nothing(strings):
-  """
-  A bit of a hacky way to get instances where nothing happens to the strings
-  """
-  for string in strings:
-    yield string
 
 
 def get_string_with_subs_for_letter(string, letter, subs):
@@ -150,8 +157,14 @@ def get_string_with_subs_for_letter(string, letter, subs):
 
 
 def try_words(words):
-  start_time = datetime.time()
+  start_time = time.time()
   user_names, salts, hashes = get_user_data()
+
+  #get a set for faster comparison
+  hash_set = set(hashes)
+
+  # Keep track of which passwords have been found so we don't ouput them more than once
+  found_passwords = set()
 
   for word in words:
     for putitive_password in mod_string_to_password(word):
@@ -161,21 +174,32 @@ def try_words(words):
         md5.update(salt)
         hsh = md5.hexdigest()
 
-        index = -1
-        if hsh in hashes:
+        if hsh in hash_set and putitive_password not in found_passwords:
           index = hashes.index(hsh)
+          found_passwords.add(putitive_password)
 
-        if index != -1:
-          timediff = datetime.time() - start_time
-          print user_names[index], putitive_password, "%i:%i:%i:%i" % (diff.hours, diff.minutes, diff.seconds, diff.microseconds / 1000)
+          #get formatted time
+          timediff = time.time() - start_time
+          m, s = divmod(timediff, 60)
+          h, m = divmod(m, 60)
+          s, milis = divmod(s * 1000, 1000)
+
+          print user_names[index], putitive_password, "%i:%i:%i:%i" % (h, m, s, milis)
 
 
 def process_job(data):
-  print "Process started"
+  """
+  Function that does any prep work before a worker starts processing jobs
+  """
   try_words(data)
 
 
 def main():
+  """
+  Loads the dictionary into memory, sets up a pool of worker processes
+  and schedules jobs to crack passwords.
+  """
+
   with open("words.json") as f:
     words = json.load(f, object_hook=ascii_encode_dict)
     words = [w.encode("ASCII") for w in words]
@@ -183,16 +207,21 @@ def main():
   num_cores = multiprocessing.cpu_count()
 
   # Prepare jobs for each core
-  jobs = []
-  words_per_job = len(words) / num_cores
-  for i in range(num_cores - 1):
-    jobs.append(words[words_per_job * i : words_per_job * (i + 1)])
+  if len(words) >= num_cores:
+    jobs = []
+    words_per_job = len(words) / num_cores
+    for i in range(num_cores - 1):
+      jobs.append(words[words_per_job * i : words_per_job * (i + 1)])
 
-  jobs.append(words[words_per_job * (num_cores - 1):])
+    jobs.append(words[words_per_job * (num_cores - 1):])
 
-  # Set up processes to do work
-  workers = multiprocessing.Pool(num_cores)
-  workers.map(process_job, jobs)
+    # Set up processes to do work
+    workers = multiprocessing.Pool(num_cores)
+    workers.map(process_job, jobs)
+
+  else:
+    #if there are very few words don't go parallel
+    process_job(words)
 
   print "Done"
 
