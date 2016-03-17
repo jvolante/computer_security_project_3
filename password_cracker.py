@@ -65,7 +65,7 @@ def mod_string_to_password(string):
   for output in make_substitutions(string):
     yield output
 
-    for added in make_substitutions(append_and_prepend_ints([output])):
+    for added in append_and_prepend_ints([output]):
       yield added
 
 
