@@ -64,11 +64,11 @@ def mod_string_to_password(string):
   for output in make_substitutions(string):
     yield output
 
-  for output in make_substitutions(prepend_chars(string)):
-    yield output
+    for prepended in prepend_chars([output]):
+      yield prepended
 
-  for ouptut in make_substitutions(append_chars(string)):
-    yield output
+    for appended in append_chars(string):
+      yield appended
 
   # for output in make_substitutions(prepend_chars(append_chars(string))):
   #   yield output
