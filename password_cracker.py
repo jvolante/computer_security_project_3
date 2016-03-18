@@ -15,9 +15,10 @@ digs = s.digits + s.letters
 parse_user_data = re.compile(r"(\w+):([\w\d]*):([a-f\d]+)")
 
 # Dictionary containing common substitutions for letters in passwords
-common_substitutions = {'a':"4@", 'e':'38', 'b':'56', 'g':'5&', 'h':'#', 'i':'1!', 'l':'1!', 'o':'0', 's':'$'}
+common_substitutions = {'a':"4@", 'c':'(', 'e':'3', 'b':'56', 'g':'69', 'h':'#', 'i':'1!', 'l':'1!', 'o':'0', 's':'$5'}
 
-PREPEND_ITERATIONS = 100 #999999
+ADD_CHARS = 36**2
+PREPEND_ITERATIONS = 999999
 userfile = "pa3hashes.txt"
 outputfile = "passwords.txt"
 
@@ -34,11 +35,6 @@ def int2base(x, base):
     digits.append('-')
   digits.reverse()
   return ''.join(digits).rstrip("0")
-
-
-def ascii_encode_dict(data):
-    ascii_encode = lambda x: x.encode('ascii')
-    return dict(map(ascii_encode, pair) for pair in data.items())
 
 
 def get_user_data():
@@ -60,10 +56,13 @@ def mod_string_to_password(string):
   Generator function that makes possible passwords from a root string
   """
 
-  string = set(change_cases([string]))
+  string = tuple(set(change_cases([string])))
 
   for output in make_substitutions(string):
     yield output
+
+    for added in append_and_prepend_chars([output]):
+      yield added
 
     for added in append_and_prepend_ints([output]):
       yield added
@@ -73,25 +72,30 @@ def change_cases(strings):
   for string in strings:
 
     yield string
+    yield string[0].upper() + string[1:]
 
-    for i, letter in enumerate(string):
-      if letter in s.lowercase:
-        yield string[0:i] + string[i].upper() + string[i + 1:]
-      elif letter in s.uppercase:
-        yield string[0:i] + string[i].lower() + string[i + 1:]
-
-    yield string.upper()
-    yield string.lower()
-
+    # for i, letter in enumerate(string):
+    #   if letter in s.lowercase:
+    #     yield string[0:i] + string[i].upper() + string[i + 1:]
+    #   elif letter in s.uppercase:
+    #     yield string[0:i] + string[i].lower() + string[i + 1:]
 
 def append_and_prepend_ints(strings):
   for string in strings:
-    for x in xrange(PREPEND_ITERATIONS):
+    for x in xrange(99, PREPEND_ITERATIONS):
       append = str(x)
 
       yield string + append
       yield append + string
 
+
+def append_and_prepend_chars(strings):
+  for string in strings:
+    for x in xrange(ADD_CHARS, PREPEND_ITERATIONS):
+      append = int2base(x, 36)
+
+      yield string + append
+      yield append + string
 
 def make_substitutions(strings):
   """
@@ -162,6 +166,13 @@ def try_words(words):
           print user_names[index], putitive_password, "%i:%i:%i:%i" % (h, m, s, milis)
           sys.stdout.flush()
 
+    timediff = time.time() - start_time
+    m, s = divmod(timediff, 60)
+    h, m = divmod(m, 60)
+    s, milis = divmod(s * 1000, 1000)
+
+    print "Done with word:", word, "%i:%i:%i:%i" % (h, m, s, milis)
+    sys.stdout.flush()
 
 def process_job(data):
   """
@@ -177,7 +188,7 @@ def main():
   """
 
   with open("words.json") as f:
-    words = json.load(f, object_hook=ascii_encode_dict)
+    words = json.load(f)
     words = [w.encode("ASCII") for w in words]
 
   num_cores = multiprocessing.cpu_count()
