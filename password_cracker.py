@@ -15,27 +15,10 @@ digs = s.digits + s.letters
 parse_user_data = re.compile(r"(\w+):([\w\d]*):([a-f\d]+)")
 
 # Dictionary containing common substitutions for letters in passwords
-common_substitutions = {'a':"4@", 'c':'(', 'e':'3', 'b':'56', 'g':'69', 'h':'#', 'i':'1!', 'l':'1!', 'o':'0', 's':'$5'}
+common_substitutions = {'a':"4@", 'b':'8', 'd':'6', 'f':'#', 'g':'9', 'k':'<', 'v':'<>', 't':'+', 'e':'3', 'h':'#', 'i':'1!', 'l':'1!', 'o':'0', 's':'$5', 'x':'%', 'c':'(', 'y':'?', 'q':'9'}
 
-ADD_CHARS = 36**2
-PREPEND_ITERATIONS = 999999
 userfile = "pa3hashes.txt"
 outputfile = "passwords.txt"
-
-def int2base(x, base):
-  if x < 0: sign = -1
-  elif x == 0: return digs[0]
-  else: sign = 1
-  x *= sign
-  digits = []
-  while x:
-    digits.append(digs[x % base])
-    x /= base
-  if sign < 0:
-    digits.append('-')
-  digits.reverse()
-  return ''.join(digits).rstrip("0")
-
 
 def get_user_data():
   usernames = []
@@ -51,51 +34,11 @@ def get_user_data():
   return usernames, salts, hashes
 
 
-def mod_string_to_password(string):
-  """
-  Generator function that makes possible passwords from a root string
-  """
-
-  string = tuple(set(change_cases([string])))
-
-  for output in make_substitutions(string):
-    yield output
-
-    for added in append_and_prepend_chars([output]):
-      yield added
-
-    for added in append_and_prepend_ints([output]):
-      yield added
-
-
 def change_cases(strings):
   for string in strings:
 
     yield string
     yield string[0].upper() + string[1:]
-
-    # for i, letter in enumerate(string):
-    #   if letter in s.lowercase:
-    #     yield string[0:i] + string[i].upper() + string[i + 1:]
-    #   elif letter in s.uppercase:
-    #     yield string[0:i] + string[i].lower() + string[i + 1:]
-
-def append_and_prepend_ints(strings):
-  for string in strings:
-    for x in xrange(99, PREPEND_ITERATIONS):
-      append = str(x)
-
-      yield string + append
-      yield append + string
-
-
-def append_and_prepend_chars(strings):
-  for string in strings:
-    for x in xrange(ADD_CHARS, PREPEND_ITERATIONS):
-      append = int2base(x, 36)
-
-      yield string + append
-      yield append + string
 
 def make_substitutions(strings):
   """
@@ -113,66 +56,58 @@ def make_substitutions(strings):
               yield x
 
 
-def get_string_with_subs_for_letter(string, letter, subs):
-  yield string
-
-  all_indexes = [i for i, l in enumerate(string) if l == letter]
-
-  for i in all_indexes:
-    for s in subs:
-      result = string[:]
-      result[i] = s
-      yield result
-
-  for i in range(1, len(all_indexes)):
-    for indexes in itertools.combinations(all_indexes, i):
-      for s in subs:
-        result = string[:]
-
-        for i in indexes:
-          result[i] = s
-
-        yield result
-
-
 def try_words(words):
   start_time = time.time()
   user_names, salts, hashes = get_user_data()
 
-  #get a set for faster comparison
+  # Get a set for faster comparison
   hash_set = set(hashes)
 
   # Keep track of which passwords have been found so we don't ouput them more than once
   found_passwords = set()
 
   for word in words:
-    for putitive_password in mod_string_to_password(word):
-      for salt in salts:
-        md5 = hashlib.md5()
-        md5.update(putitive_password)
-        md5.update(salt)
-        hsh = md5.hexdigest()
+    mixed_words = tuple(set(make_substitutions(change_cases([word]))))
+    for mixed_word in mixed_words:
+      for i in get_char_combinations():
 
-        if hsh in hash_set and putitive_password not in found_passwords:
-          index = hashes.index(hsh)
-          found_passwords.add(putitive_password)
+        def foo():
+          yield i + mixed_word
+          yield mixed_word + i
+          yield mixed_word
 
-          #get formatted time
-          timediff = time.time() - start_time
-          m, s = divmod(timediff, 60)
-          h, m = divmod(m, 60)
-          s, milis = divmod(s * 1000, 1000)
+        for password in foo():
+          for salt in salts:
+            md5 = hashlib.md5()
+            md5.update(password)
+            md5.update(salt)
+            hsh = md5.hexdigest()
 
-          print user_names[index], putitive_password, "%i:%i:%i:%i" % (h, m, s, milis)
-          sys.stdout.flush()
+            if hsh in hash_set and password not in found_passwords:
+              index = hashes.index(hsh)
+              found_passwords.add(password)
 
-    timediff = time.time() - start_time
-    m, s = divmod(timediff, 60)
-    h, m = divmod(m, 60)
-    s, milis = divmod(s * 1000, 1000)
+              #get formatted time
+              timediff = time.time() - start_time
+              m, s = divmod(timediff, 60)
+              h, m = divmod(m, 60)
+              s, milis = divmod(s * 1000, 1000)
 
-    print "Done with word:", word, "%i:%i:%i:%i" % (h, m, s, milis)
-    sys.stdout.flush()
+              print user_names[index], password, "%i:%i:%i:%i" % (h, m, s, milis)
+              sys.stdout.flush()
+
+
+def get_char_combinations():
+  c1 = 33
+  c2 = 33
+
+  while c2 < 127:
+    while c1 < 127:
+      yield chr(c1) + chr(c2)
+      c1 += 1
+    yield chr(c2)
+    c2 += 1
+
 
 def process_job(data):
   """
